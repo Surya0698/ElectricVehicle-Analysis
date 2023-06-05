@@ -1,0 +1,215 @@
+---
+title: "Electric Vehicles"
+author: "Surya Prakash Narayanan"
+date: "2022-12-15"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r include=FALSE}
+
+
+library(tidyverse)
+library(dplyr)
+library(corrplot)
+library(RColorBrewer)
+library(ggplot2)
+library(ggbeeswarm)
+library(ggVennDiagram)
+library(plotly)
+library(reshape2)
+library(DescTools)
+library(BSDA)
+library(lmtest)
+library(fitdistrplus)
+library(plyr)
+library(forecast)
+library(fpp2)
+library(TTR)
+```
+# Objective:
+
+Electric vehicles are powered by electricity, at least in part. Unlike traditional vehicles, which utilize a gasoline or diesel engine, electric cars and trucks use an electric motor fueled by electricity from batteries or a fuel cell. Main objective is to analyze and visualize about the electric vehilces efficiency and the other factors related to it. 
+
+# Dataset:
+
+This dataset has 104 rows of data and 14 features. The dataset mainly describes efficiency of electric vehicles based on Brand,AccelSec,PowerTrain and PriceEuro.
+
+# Descriptive Analysis:
+
+The summary statistics for efficiency, the minimum value is 104 WhKm and maximum value is 273. Average efficiency of all the electric cars is 189.165 WhKm and median is 180 WhKm. 
+
+From the Cullen Frey graph we can understand the efficiency follows lognormal and normal distribution.
+With the help of Fitdist() we could infer the AIC and BIC values are lower and
+the loglikelihood is larger in lognormal distribution when compared to that of normal distribution.
+We could conclude that Efficency dataset is closer to lognormal distribution.
+From QQ- Plot we could see efficiency dataset is right skewed or postive skewed.
+
+
+```{r echo=FALSE}
+a <- read.csv("/Users/surya/Downloads/archive/ElectricCarData_Clean.csv")
+
+#decriptive analysis
+
+descdist(a$Efficiency_WhKm)
+
+fit_n <- fitdist(a$Efficiency_WhKm, "norm")
+summary(fit_n)
+
+fit_ln <- fitdist(a$Efficiency_WhKm, "lnorm")
+summary(fit_ln)
+
+fit_exp <- fitdist(a$Efficiency_WhKm, "exp")
+summary(fit_exp)
+
+par(mfrow=c(2,2))
+plot.legend <- c("normal","lnorm")
+denscomp(list(fit_ln), legendtext = plot.legend, xlab = 'Efficiency', xlegend = 'topleft')
+cdfcomp (list(fit_ln), legendtext = plot.legend, xlab = 'Efficiency')
+qqcomp  (list(fit_ln), legendtext = plot.legend, xlab = 'Efficiency')
+ppcomp  (list(fit_ln), legendtext = plot.legend, xlab = 'Efficiency')
+
+
+
+
+
+```
+
+
+# Hypothesis test:
+
+On an average if a car reaches  0-100 mph in 6 seconds, its considered relatively fast. (Mu value is taken from an article about time taken to reach 0-100 mph)
+Comparing the average time taken for electric cars with normal cars
+It is left tailed test
+Ho: Mu >= 6
+H1: Mu <6
+Since the sigma is unknown, t test was done.
+The p value is 0.5 which less than the significance value, So we fail to reject the null hypothesis.
+Therefore time taken to reach 0-100 in an Electric car is not less than 6 seconds
+
+
+```{r echo=FALSE}
+result <- t.test(a$AccelSec, mu = mean(a$AccelSec), alternative = "less")
+result 
+
+```
+# Data Visualization
+
+## Scatterplot:
+
+In this scatterplot x coordinate corresponds to efficiancy of an Electric vehicle and y coordinate corresponds to range which they can travel with one full charge.
+
+We could infer that Mercedes manufactures the most efficent Electric Vehicle in the market and least efficient are the ones manufactured by lightyear
+Tesla has the highest range amoung all Electric vehicles whereas Electric vehicles manufactured by smart have the least range.
+
+```{r echo=FALSE}
+
+#scatterplot
+efficiency <- round(a$Efficiency_WhKm,0)
+range <- round(a$Range_Km,0)
+ggplot(a, aes(x=efficiency, y=range, color=Brand)) + 
+    geom_point(size=1)
+
+ggplot(a, aes(x=efficiency, y=range, color=Brand)) + 
+    geom_point(size=1)+
+geom_text(
+    label= a$Brand, 
+    nudge_x = 0.25, nudge_y = 0.25, 
+    check_overlap = TRUE)
+```
+
+## Correlation Plot:
+
+From the correaltion plot color pink represents the highest correlation 1 and turquoice has lowest corelation -1.
+We can understand that Topspeed and Range are highly corelated, whereas Topspeed and AccelSec are least corellated.
+
+```{r echo=FALSE}
+data <- a %>% dplyr::select(AccelSec, TopSpeed_KmH,Range_Km,Efficiency_WhKm)
+correlation <- cor(data, use = 'pairwise')
+correlation
+corrplot(correlation, type='upper', col = brewer.pal(n=8, name="Set3"))
+```
+
+# Statistical Analysis
+
+## Confidence Interval of Means:
+
+Used the confidence interval to find price range of an electric vehicle.
+With 95% confidence we can say that the average price of an electric vehiles lies between 49140.3 euros and 62482.83 euros.
+
+```{r echo=FALSE}
+
+l.model <- lm( a$PriceEuro~ 1, a)
+confint(l.model, level=0.95)
+```
+
+## Confidence Interval of Proportions.
+
+Checking if sigma 1 and sigma 2 is equal
+sigma 1 = variance of range in AWD powertrain Electric vehicles
+Sigma 2 = Variance of range in FWD powertrain Electric vehicles
+
+Ho: sigma1 = sigma2
+H1: sigma != sigma2
+
+Since p value is less than the significance value we reject the null hypothesis. Therefore we can conclude that sigma1 is not equal to sigma 2
+
+```{r echo=FALSE}
+b <- filter( a, PowerTrain == 'AWD')
+c <- filter(a, PowerTrain =='FWD') 
+
+#Checking if sigma 1 and sigma 2 is equal
+#sigma 1 = variance of range in AWD powertrain Electric vehicles.
+#Sigma 2 = Variance of range in FWD powertrain Electric vehicles
+
+#Ho: sigma1 = sigma2
+#H1: sigma != sigma2
+t.test(x = b$Range_Km, y = c$Range_Km, 
+                             alternative = "two.sided")
+```
+
+Hypothesis:
+
+Po: Range in AWD powertrain Electric Vehicles
+
+P1: Range in FWD powertrain Electric Vehicles
+
+Ho: Po >= P1
+
+Ho: Po < P1
+
+Since P value is more than the significance value we fail to reject the null hypothesis.
+Therefore, we can conclude that the range in AWD is more when compared with FWD powertrain electric vehicles
+
+```{r echo=FALSE}
+var.test(x = b$Range_Km, y = c$Range_Km, 
+                             alternative = "less")
+```
+
+# Conclusion
+
+Exploratory data analysis is dane with the help of scatterplot and correlation matrix.
+From the hypothesis test we could understand that on an average, acceleration time take to reach from 0-100 is greater than 6 seconds.
+AWD powertrain electric vehicles have more range than FWD powertrain electric vehicles.
+Efficiency follows a lognormal distribution and is right skewed.
+Top speed and range is high corelated with each other, whereas Top speed and AccelSec have negative corelation.
+
+# Reference
+
+Dataset:EVs - One Electric Vehicle Dataset - Smaller 
+https://www.kaggle.com/datasets/geoffnel/evs-one-electric-vehicle-dataset
+
+Bartlett, J. S. (2021, December 7). Best and Worst Cars for 0-to-100 Acceleration. Consumer Reports.
+
+Create Elegant Data Visualisations Using the Grammar of Graphics. (n.d.).
+
+Holtz, Y. (n.d.). The R Graph Gallery – Help and inspiration for R charts. The R Graph Gallery.
+
+
+
+
+
+
+
+
